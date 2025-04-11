@@ -87,20 +87,22 @@ func (ws *WebsocketService) HandleConnection(
 		return err
 	}
 
-	log.Println("Nueva conexión con ID de sesión:", sessionID)
+	log.Println("Nueva conexión WebSocket con ID de sesión:", sessionID)
 
 	if sessionID == "" {
 		sessionID = ws.generateSessionID()
 		log.Println("ID de sesión generado:", sessionID)
 	}
 
-	defer conn.Close()
+	// Registramos el cliente
+	ws.RegisterClient(conn)
 
 	session := domain.NewSession(conn, sessionID, ws.sessions)
 
 	ws.addSession(sessionID, session)
 
-	session.StartHandling(ws.removeSession)
+	// Inicia el manejo en una goroutine para no bloquear
+	go session.StartHandling(ws.removeSession)
 
 	return nil
 }

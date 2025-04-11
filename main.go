@@ -27,7 +27,13 @@ func main() {
 
 	// Inicializar repositorios
 	productoRepo := database.NewSQLProductoRepository(db)
-	// Aquí inicializaríamos los demás repositorios
+	proveedorRepo := database.NewSQLProveedorRepository(db)
+	pedidoRepo := database.NewSQLPedidoRepository(db)
+	detallesPedidoRepo := database.NewSQLDetallesPedidoRepository(db)
+	ventaRepo := database.NewSQLVentaRepository(db)
+	detallesVentaRepo := database.NewSQLDetallesVentaRepository(db)
+	ordenRepo := database.NewSQLOrdenProveedorRepository(db)
+	detallesOrdenRepo := database.NewSQLDetallesOrdenRepository(db)
 
 	// Inicializar servicios WebSocket
 	stockWS := websocket.NewWebsocketService()
@@ -73,7 +79,8 @@ func main() {
 	go func() {
 		// Esperamos un poco para que la base de datos esté lista
 		time.Sleep(2 * time.Second)
-		database.SetupDatabase()
+		// Asegúrate de implementar esta función en database
+		database.SetupTestData()
 	}()
 
 	// Obtener puerto

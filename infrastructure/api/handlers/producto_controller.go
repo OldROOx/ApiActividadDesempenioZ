@@ -152,6 +152,3 @@ func (pc *ProductoController) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Producto eliminado correctamente"})
 }
-
-// Aquí seguirían los demás controladores como ProveedorController, PedidoController, etc.
-// con estructura similar pero adaptada a cada entidad
