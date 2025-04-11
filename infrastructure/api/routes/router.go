@@ -3,6 +3,7 @@ package routes
 import (
 	"ActividadDesempenioAPIz/core/ports"
 	"ActividadDesempenioAPIz/infrastructure/api/handlers"
+	_ "ActividadDesempenioAPIz/infrastructure/database"
 	"ActividadDesempenioAPIz/infrastructure/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -44,10 +45,26 @@ func SetupRouter(
 	ventaController := controllerFactory.GetVentaController()
 	ordenController := controllerFactory.GetOrdenProveedorController()
 
+	// Type assertion para convertir de la interfaz a la implementación concreta
+	stockWSService, ok := stockWS.(*websocket.WebsocketService)
+	if !ok {
+		stockWSService = websocket.NewWebsocketService() // Fallback si la conversión falla
+	}
+
+	ordersWSService, ok := ordersWS.(*websocket.WebsocketService)
+	if !ok {
+		ordersWSService = websocket.NewWebsocketService() // Fallback si la conversión falla
+	}
+
+	cancellationsWSService, ok := cancellationsWS.(*websocket.WebsocketService)
+	if !ok {
+		cancellationsWSService = websocket.NewWebsocketService() // Fallback si la conversión falla
+	}
+
 	// Inicializar manejadores de WebSocket
-	productStockWSHandler := websocket.NewProductStockWebsocketHandler(stockWS)
-	orderCreationWSHandler := websocket.NewOrderCreationWebsocketHandler(ordersWS)
-	orderCancelWSHandler := websocket.NewOrderCancelWebsocketHandler(cancellationsWS)
+	productStockWSHandler := websocket.NewProductStockWebsocketHandler(stockWSService)
+	orderCreationWSHandler := websocket.NewOrderCreationWebsocketHandler(ordersWSService)
+	orderCancelWSHandler := websocket.NewOrderCancelWebsocketHandler(cancellationsWSService)
 
 	// WebSocket routes - Cada tipo de notificación tiene su propia ruta
 	ws := engine.Group("ws")

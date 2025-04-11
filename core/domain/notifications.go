@@ -1,103 +1,67 @@
 package domain
 
 import (
-	"fmt"
-	"log"
-	"sync"
+	"encoding/json"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
-// Session representa una sesión de conexión WebSocket
-type Session struct {
-	Conn         *websocket.Conn
-	SessionID    string
-	CloseHandler func(sessionID string)
-	Sessions     map[string]*Session
-	Mutex        sync.Mutex
+// NotificationType define el tipo de notificación
+type NotificationType string
+
+const (
+	LowStockNotification    NotificationType = "low_stock"
+	NewOrderNotification    NotificationType = "new_order"
+	CancelOrderNotification NotificationType = "cancel_order"
+)
+
+// Notification representa una notificación del sistema
+type Notification struct {
+	Type        NotificationType `json:"type"`
+	Message     string           `json:"message"`
+	Timestamp   time.Time        `json:"timestamp"`
+	EntityID    string           `json:"entity_id"`
+	Amount      float64          `json:"amount,omitempty"`
+	StockLevel  int              `json:"stock_level,omitempty"`
+	Provider    string           `json:"provider,omitempty"`
+	ProductsURL string           `json:"products_url,omitempty"`
 }
 
-// NewSession crea una nueva sesión
-func NewSession(conn *websocket.Conn, sessionID string, sessions map[string]*Session) *Session {
-	return &Session{
-		Conn:      conn,
-		SessionID: sessionID,
-		Sessions:  sessions,
-		Mutex:     sync.Mutex{},
+// NewLowStockNotification crea una nueva notificación de stock bajo
+func NewLowStockNotification(productID string, stockLevel int) *Notification {
+	return &Notification{
+		Type:       LowStockNotification,
+		Message:    "Alerta: Stock bajo",
+		Timestamp:  time.Now(),
+		EntityID:   productID,
+		StockLevel: stockLevel,
 	}
 }
 
-// SetCloseHandler establece el manejador de cierre
-func (s *Session) SetCloseHandler(handler func(sessionID string)) {
-	s.CloseHandler = handler
-}
-
-// StartHandling inicia el manejo de la sesión
-func (s *Session) StartHandling(removeSession func(sessionID string)) {
-	s.CloseHandler = removeSession
-	s.readPump()
-}
-
-// readPump escucha mensajes entrantes
-func (s *Session) readPump() {
-	defer func() {
-		s.Conn.Close()
-		if s.CloseHandler != nil {
-			s.CloseHandler(s.SessionID)
-		}
-	}()
-
-	for {
-		messageType, _, err := s.Conn.ReadMessage()
-
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(
-				err,
-				websocket.CloseGoingAway,
-				websocket.CloseAbnormalClosure,
-			) {
-				log.Printf("Error en la sesión %s: %v", s.SessionID, err)
-			}
-			break
-		}
-
-		if messageType != -1 {
-			// Simple eco para mensajes del cliente
-			message := fmt.Sprintf("Recibido mensaje del cliente %s", s.SessionID)
-			s.SendMessage(websocket.TextMessage, []byte(message))
-		}
-
-		time.Sleep(17 * time.Millisecond)
+// OrderNotification crea una nueva notificación de creación de orden
+func OrderNotification(orderID string, amount float64, productsURL string) *Notification {
+	return &Notification{
+		Type:        NewOrderNotification,
+		Message:     "Nueva orden creada",
+		Timestamp:   time.Now(),
+		EntityID:    orderID,
+		Amount:      amount,
+		ProductsURL: productsURL,
 	}
 }
 
-// BroadcastToAll envía un mensaje a todas las sesiones conectadas
-func (s *Session) BroadcastToAll(messageType int, payload []byte) {
-	for _, session := range s.Sessions {
-		session.SendMessage(messageType, payload)
+// NewCancelOrderNotification crea una nueva notificación de cancelación de orden
+func NewCancelOrderNotification(orderID string, amount float64, provider string) *Notification {
+	return &Notification{
+		Type:      CancelOrderNotification,
+		Message:   "Orden cancelada",
+		Timestamp: time.Now(),
+		EntityID:  orderID,
+		Amount:    amount,
+		Provider:  provider,
 	}
 }
 
-// BroadcastNotification envía una notificación a todos los clientes conectados
-func (s *Session) BroadcastNotification(notification *Notification) {
-	payload, err := notification.ToJSON()
-	if err != nil {
-		log.Printf("Error al serializar la notificación: %v", err)
-		return
-	}
-
-	s.BroadcastToAll(websocket.TextMessage, payload)
-	log.Printf("Notificación enviada: %s", string(payload))
-}
-
-// SendMessage envía un mensaje a la sesión
-func (s *Session) SendMessage(messageType int, payloadByte []byte) {
-	s.Mutex.Lock()
-	defer s.Mutex.Unlock()
-
-	err := s.Conn.WriteMessage(messageType, payloadByte)
-	if err != nil {
-		log.Printf("Error al enviar mensaje a la sesión %s: %v", s.SessionID, err)
-	}
+// ToJSON convierte la notificación a JSON
+func (n *Notification) ToJSON() ([]byte, error) {
+	return json.Marshal(n)
 }

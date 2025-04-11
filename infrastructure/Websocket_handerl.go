@@ -1,6 +1,7 @@
-package websocket
+package infrastructure
 
 import (
+	"ActividadDesempenioAPIz/infrastructure/websocket"
 	"log"
 	"net/http"
 
@@ -9,11 +10,11 @@ import (
 
 // ProductStockWebsocketHandler maneja las conexiones WebSocket para notificaciones de stock
 type ProductStockWebsocketHandler struct {
-	wsService *WebsocketService
+	wsService *websocket.WebsocketService
 }
 
 // NewProductStockWebsocketHandler crea un nuevo manejador de WebSocket para stock
-func NewProductStockWebsocketHandler(wsService *WebsocketService) *ProductStockWebsocketHandler {
+func NewProductStockWebsocketHandler(wsService *websocket.WebsocketService) *ProductStockWebsocketHandler {
 	return &ProductStockWebsocketHandler{
 		wsService: wsService,
 	}
@@ -36,11 +37,11 @@ func (wh *ProductStockWebsocketHandler) Handle(c *gin.Context) {
 
 // OrderCreationWebsocketHandler maneja las conexiones WebSocket para notificaciones de creación de órdenes
 type OrderCreationWebsocketHandler struct {
-	wsService *WebsocketService
+	wsService *websocket.WebsocketService
 }
 
 // NewOrderCreationWebsocketHandler crea un nuevo manejador de WebSocket para creación de órdenes
-func NewOrderCreationWebsocketHandler(wsService *WebsocketService) *OrderCreationWebsocketHandler {
+func NewOrderCreationWebsocketHandler(wsService *websocket.WebsocketService) *OrderCreationWebsocketHandler {
 	return &OrderCreationWebsocketHandler{
 		wsService: wsService,
 	}
@@ -63,11 +64,11 @@ func (wh *OrderCreationWebsocketHandler) Handle(c *gin.Context) {
 
 // OrderCancelWebsocketHandler maneja las conexiones WebSocket para notificaciones de cancelación
 type OrderCancelWebsocketHandler struct {
-	wsService *WebsocketService
+	wsService *websocket.WebsocketService
 }
 
 // NewOrderCancelWebsocketHandler crea un nuevo manejador de WebSocket para cancelaciones
-func NewOrderCancelWebsocketHandler(wsService *WebsocketService) *OrderCancelWebsocketHandler {
+func NewOrderCancelWebsocketHandler(wsService *websocket.WebsocketService) *OrderCancelWebsocketHandler {
 	return &OrderCancelWebsocketHandler{
 		wsService: wsService,
 	}

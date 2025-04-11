@@ -2,27 +2,27 @@ package application
 
 import (
 	"ActividadDesempenioAPIz/core/domain"
-	"ActividadDesempenioAPIz/core/ports"
+	"ActividadDesempenioAPIz/infrastructure/websocket"
 	"log"
 	"strconv"
 	"sync"
 )
 
-// NotificationServiceExtended implementa el servicio de notificaciones extendido
+// NotificationServiceExtended extiende el servicio de notificaciones
 type NotificationServiceExtended struct {
-	productStockWS  ports.WebSocketService
-	orderCreationWS ports.WebSocketService
-	orderCancelWS   ports.WebSocketService
-	proveedorRepo   ports.ProveedorRepository
+	productStockWS  *websocket.WebsocketService
+	orderCreationWS *websocket.WebsocketService
+	orderCancelWS   *websocket.WebsocketService
+	proveedorRepo   ProveedorRepository
 	mutex           sync.RWMutex
 }
 
 // NewNotificationServiceExtended crea un nuevo servicio de notificaciones extendido
 func NewNotificationServiceExtended(
-	productStockWS ports.WebSocketService,
-	orderCreationWS ports.WebSocketService,
-	orderCancelWS ports.WebSocketService,
-	proveedorRepo ports.ProveedorRepository,
+	productStockWS *websocket.WebsocketService,
+	orderCreationWS *websocket.WebsocketService,
+	orderCancelWS *websocket.WebsocketService,
+	proveedorRepo ProveedorRepository,
 ) *NotificationServiceExtended {
 	return &NotificationServiceExtended{
 		productStockWS:  productStockWS,
@@ -33,18 +33,23 @@ func NewNotificationServiceExtended(
 	}
 }
 
+// ProveedorRepository define la interfaz para acceder a proveedores
+type ProveedorRepository interface {
+	GetByID(id int) (*domain.Proveedor, error)
+}
+
 // GetProductStockWS retorna el servicio WebSocket para notificaciones de stock
-func (ns *NotificationServiceExtended) GetProductStockWS() ports.WebSocketService {
+func (ns *NotificationServiceExtended) GetProductStockWS() *websocket.WebsocketService {
 	return ns.productStockWS
 }
 
 // GetOrderCreationWS retorna el servicio WebSocket para notificaciones de creación de órdenes
-func (ns *NotificationServiceExtended) GetOrderCreationWS() ports.WebSocketService {
+func (ns *NotificationServiceExtended) GetOrderCreationWS() *websocket.WebsocketService {
 	return ns.orderCreationWS
 }
 
 // GetOrderCancelWS retorna el servicio WebSocket para notificaciones de cancelación de órdenes
-func (ns *NotificationServiceExtended) GetOrderCancelWS() ports.WebSocketService {
+func (ns *NotificationServiceExtended) GetOrderCancelWS() *websocket.WebsocketService {
 	return ns.orderCancelWS
 }
 
@@ -56,7 +61,13 @@ func (ns *NotificationServiceExtended) NotifyLowStock(productID int, stockLevel 
 	if stockLevel <= 5 {
 		productIDStr := strconv.Itoa(productID)
 		notification := domain.NewLowStockNotification(productIDStr, stockLevel)
-		ns.broadcastStockNotification(notification)
+		payload, err := notification.ToJSON()
+		if err != nil {
+			log.Printf("Error al serializar notificación de stock: %v", err)
+			return
+		}
+
+		ns.productStockWS.Broadcast(payload)
 		log.Printf("Notificación de stock bajo para producto %d con nivel de stock %d",
 			productID, stockLevel)
 	}
@@ -70,7 +81,13 @@ func (ns *NotificationServiceExtended) NotifyNewPedido(pedidoID int, amount floa
 	pedidoIDStr := strconv.Itoa(pedidoID)
 	productsURL := "/api/pedidos/" + pedidoIDStr + "/productos"
 	notification := domain.OrderNotification(pedidoIDStr, amount, productsURL)
-	ns.broadcastOrderNotification(notification)
+	payload, err := notification.ToJSON()
+	if err != nil {
+		log.Printf("Error al serializar notificación de pedido: %v", err)
+		return
+	}
+
+	ns.orderCreationWS.Broadcast(payload)
 	log.Printf("Notificación de nuevo pedido para pedido %d con monto %.2f",
 		pedidoID, amount)
 }
@@ -83,7 +100,13 @@ func (ns *NotificationServiceExtended) NotifyNewVenta(ventaID int, amount float6
 	ventaIDStr := strconv.Itoa(ventaID)
 	productsURL := "/api/ventas/" + ventaIDStr + "/productos"
 	notification := domain.OrderNotification(ventaIDStr, amount, productsURL)
-	ns.broadcastOrderNotification(notification)
+	payload, err := notification.ToJSON()
+	if err != nil {
+		log.Printf("Error al serializar notificación de venta: %v", err)
+		return
+	}
+
+	ns.orderCreationWS.Broadcast(payload)
 	log.Printf("Notificación de nueva venta para venta %d con monto %.2f",
 		ventaID, amount)
 }
@@ -96,7 +119,13 @@ func (ns *NotificationServiceExtended) NotifyNewOrdenProveedor(ordenID int, amou
 	ordenIDStr := strconv.Itoa(ordenID)
 	productsURL := "/api/ordenes/" + ordenIDStr + "/productos"
 	notification := domain.OrderNotification(ordenIDStr, amount, productsURL)
-	ns.broadcastOrderNotification(notification)
+	payload, err := notification.ToJSON()
+	if err != nil {
+		log.Printf("Error al serializar notificación de orden: %v", err)
+		return
+	}
+
+	ns.orderCreationWS.Broadcast(payload)
 	log.Printf("Notificación de nueva orden de proveedor para orden %d con monto %.2f",
 		ordenID, amount)
 }
@@ -108,7 +137,13 @@ func (ns *NotificationServiceExtended) NotifyCanceledPedido(pedidoID int, amount
 
 	pedidoIDStr := strconv.Itoa(pedidoID)
 	notification := domain.NewCancelOrderNotification(pedidoIDStr, amount, "")
-	ns.broadcastCancelNotification(notification)
+	payload, err := notification.ToJSON()
+	if err != nil {
+		log.Printf("Error al serializar notificación de cancelación: %v", err)
+		return
+	}
+
+	ns.orderCancelWS.Broadcast(payload)
 	log.Printf("Notificación de pedido cancelado para pedido %d con monto %.2f",
 		pedidoID, amount)
 }
@@ -120,7 +155,13 @@ func (ns *NotificationServiceExtended) NotifyCanceledVenta(ventaID int, amount f
 
 	ventaIDStr := strconv.Itoa(ventaID)
 	notification := domain.NewCancelOrderNotification(ventaIDStr, amount, "")
-	ns.broadcastCancelNotification(notification)
+	payload, err := notification.ToJSON()
+	if err != nil {
+		log.Printf("Error al serializar notificación de cancelación: %v", err)
+		return
+	}
+
+	ns.orderCancelWS.Broadcast(payload)
 	log.Printf("Notificación de venta cancelada para venta %d con monto %.2f",
 		ventaID, amount)
 }
@@ -139,36 +180,13 @@ func (ns *NotificationServiceExtended) NotifyCanceledOrdenProveedor(ordenID int,
 
 	ordenIDStr := strconv.Itoa(ordenID)
 	notification := domain.NewCancelOrderNotification(ordenIDStr, amount, providerName)
-	ns.broadcastCancelNotification(notification)
+	payload, err := notification.ToJSON()
+	if err != nil {
+		log.Printf("Error al serializar notificación de cancelación: %v", err)
+		return
+	}
+
+	ns.orderCancelWS.Broadcast(payload)
 	log.Printf("Notificación de orden cancelada para orden %d con monto %.2f y proveedor %s",
 		ordenID, amount, providerName)
-}
-
-// Métodos privados para distribución de notificaciones
-
-func (ns *NotificationServiceExtended) broadcastStockNotification(notification *domain.Notification) {
-	payload, err := notification.ToJSON()
-	if err != nil {
-		log.Printf("Error al serializar notificación: %v", err)
-		return
-	}
-	ns.productStockWS.Broadcast(payload)
-}
-
-func (ns *NotificationServiceExtended) broadcastOrderNotification(notification *domain.Notification) {
-	payload, err := notification.ToJSON()
-	if err != nil {
-		log.Printf("Error al serializar notificación: %v", err)
-		return
-	}
-	ns.orderCreationWS.Broadcast(payload)
-}
-
-func (ns *NotificationServiceExtended) broadcastCancelNotification(notification *domain.Notification) {
-	payload, err := notification.ToJSON()
-	if err != nil {
-		log.Printf("Error al serializar notificación: %v", err)
-		return
-	}
-	ns.orderCancelWS.Broadcast(payload)
 }

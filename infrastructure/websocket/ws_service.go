@@ -102,9 +102,41 @@ func (ws *WebsocketService) HandleConnection(
 	ws.addSession(sessionID, session)
 
 	// Inicia el manejo en una goroutine para no bloquear
-	go session.StartHandling(ws.removeSession)
+	go ws.startHandling(session)
 
 	return nil
+}
+
+// startHandling inicia el manejo de la sesión
+func (ws *WebsocketService) startHandling(session *domain.Session) {
+	// Configurar el manejador de cierre
+	session.SetCloseHandler(ws.removeSession)
+
+	// Leer mensajes en un bucle
+	for {
+		messageType, message, err := session.Conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(
+				err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure,
+			) {
+				log.Printf("Error en la sesión %s: %v", session.SessionID, err)
+			}
+			break
+		}
+
+		// Procesamos el mensaje
+		if messageType == websocket.TextMessage {
+			log.Printf("Mensaje recibido de %s: %s", session.SessionID, string(message))
+
+			// Simple eco como respuesta
+			session.SendMessage(websocket.TextMessage, []byte("Recibido: "+string(message)))
+		}
+	}
+
+	// Cuando se rompe el bucle, removemos la sesión
+	ws.removeSession(session.SessionID)
 }
 
 // generateSessionID genera un nuevo ID de sesión
@@ -131,8 +163,15 @@ func (ws *WebsocketService) removeSession(sessionID string) {
 	ws.sessionsMutex.Lock()
 	defer ws.sessionsMutex.Unlock()
 
-	delete(ws.sessions, sessionID)
-	log.Printf("Sesión %s eliminada, sesiones restantes: %d", sessionID, len(ws.sessions))
+	if session, exists := ws.sessions[sessionID]; exists {
+		// Desregistramos el cliente
+		if session.Conn != nil {
+			ws.UnregisterClient(session.Conn)
+		}
+
+		delete(ws.sessions, sessionID)
+		log.Printf("Sesión %s eliminada, sesiones restantes: %d", sessionID, len(ws.sessions))
+	}
 }
 
 // GetSessions retorna las sesiones activas
